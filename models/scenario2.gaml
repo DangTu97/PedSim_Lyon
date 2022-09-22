@@ -11,9 +11,10 @@ model scenario2
 /* Insert your model definition here */
 
 global {
-	float step <- 0.3 #s;
+	float step <- 0.2 #s;
 	shape_file bound_shapefile <- shape_file("../includes/Place de Terreaux/bound.shp");
 	shape_file building_shapefile <- shape_file("../includes/Place de Terreaux/polygons.shp");
+	shape_file ok_shapefile <- shape_file("../includes/Place de Terreaux/ok.shp");
 	shape_file init_space_shapefile <- shape_file("../includes/Place de Terreaux/exit_space.shp");
 	shape_file center_shapefile <- shape_file("../includes/Place de Terreaux/center.shp");
 	
@@ -32,17 +33,17 @@ global {
 	bool display_target <- false parameter: true;
 	bool display_circle_min_dist <- true parameter: true;
 	
-	float P_shoulder_length <- 0.8 parameter: true;
+	float P_shoulder_length <- 1.0 parameter: true;
 	float P_proba_detour <- 0.5 parameter: true ;
 	bool P_avoid_other <- true parameter: true ;
 	float P_obstacle_consideration_distance <- 3.0 parameter: true ;
-	float P_pedestrian_consideration_distance <- 3.0 parameter: true ;
+	float P_pedestrian_consideration_distance <- 5.0 parameter: true ;
 	float P_tolerance_target <- 0.1 parameter: true;
 	bool P_use_geometry_target <- true parameter: true;
 	
-	string P_model_type <- "simple" among: ["simple", "advanced"] parameter: true ; 
+	string P_model_type <- "advanced" among: ["simple", "advanced"] parameter: true ; 
 	
-	float P_A_pedestrian_SFM_advanced parameter: true <- 0.16 category: "SFM advanced" ;
+	float P_A_pedestrian_SFM_advanced parameter: true <- 0.2 category: "SFM advanced" ;
 	float P_A_obstacles_SFM_advanced parameter: true <- 1.9 category: "SFM advanced" ;
 	float P_B_pedestrian_SFM_advanced parameter: true <- 3.0 category: "SFM advanced" ;
 	float P_B_obstacles_SFM_advanced parameter: true <- 3.0 category: "SFM advanced" ;
@@ -56,10 +57,12 @@ global {
 	float P_lambda_SFM_simple <- 2.0 parameter: true category: "SFM simple" ;
 	float P_gama_SFM_simple parameter: true <- 0.35 category: "SFM simple" ;
 	float P_relaxion_SFM_simple parameter: true <- 0.54 category: "SFM simple" ;
-	float P_A_pedestrian_SFM_simple parameter: true <- 4.5category: "SFM simple" ;
+	float P_A_pedestrian_SFM_simple parameter: true <- 4.5 category: "SFM simple" ;
 	
 	init {
 		create building from: building_shapefile;
+		create ok from: ok_shapefile;
+		
 		create init_space from: init_space_shapefile;
 		create center from: center_shapefile {
 			building frontaint <- first(building where (each.name = 'Fontaine Bartholdi'));
@@ -78,7 +81,7 @@ global {
 		
 		network <- as_edge_graph(pedestrian_path);
 		
-		create people number: 1000 {
+		create people number: 2000 {
 			location <- any_location_in(one_of(center_area));
 			my_target <- any_location_in(one_of(init_space));
 			
@@ -114,16 +117,22 @@ global {
 				minimal_distance <- P_minimal_distance_advanced;
 			}
 			
-			do compute_virtual_path pedestrian_graph:network target: my_target;
+//			do compute_virtual_path pedestrian_graph:network target: my_target;
 			
 		}
 	
 	}
 }
 
-species building {
+species ok {
 	aspect default {
 		draw shape color: #grey;
+	}
+}
+
+species building {
+	aspect default {
+		draw shape color: name='Fontaine Bartholdi' ? rgb(69, 160, 239) : rgb(239, 239, 69);
 	}
 }
 
@@ -144,14 +153,27 @@ species people skills: [pedestrian]{
 	float speed <- gauss(5,1.5) #km/#h min: 2 #km/#h;
 	point my_target;
 	
-	reflex move_out {
-//		do walk_to target: my_target bounds: open_area;
-
-		do walk;
-		
-		if (distance_to(location, my_target) < 1.0 or final_waypoint = nil) {
+	reflex do_die {
+		if location overlaps one_of(ok) {
 			do die;
 		}
+		
+		if shape overlaps one_of(init_space) {
+			do die;
+		}
+		
+	}
+	
+	reflex move_out {
+		do walk_to target: my_target bounds: open_area;
+		if (distance_to(location, my_target) < 1.0 ) {
+			do die;
+		}
+		
+//		do walk;
+//		if (distance_to(location, my_target) < 0.5 or final_waypoint = nil) {
+//			do die;
+//		}
 	}
 	
 	aspect default {
